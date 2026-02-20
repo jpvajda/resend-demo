@@ -146,7 +146,7 @@ async function scheduleReceiptEmail(clientEmail, clientName, invoiceId, total, d
     to: clientEmail,
     subject: `Receipt for Invoice ${invoiceId}`,
     html,
-    scheduled_at: scheduledAt,
+    scheduledAt,
   });
 
   return response;

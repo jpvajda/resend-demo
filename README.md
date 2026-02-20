@@ -14,7 +14,7 @@ A Node.js invoice email service that generates PDF invoices and sends them via [
 
 1. A Resend Account. [Sign up here](https://resend.com/).
 2. A Resend API Key.
-3. A email to send from
+3. A real email to send from.
 
 ## Emails to use
 
@@ -37,7 +37,7 @@ npm start
 Confirm the server is working by running:
 
 ```bash
-curl http://localhost:{port}/
+curl http://localhost:{port}
 ```
 
 A successful response will look like:
@@ -68,11 +68,11 @@ curl -X POST http://localhost:{port}/invoice \
   }'
 ```
 
-Use `delay_minutes` to control when the receipt is sent. Defaults to `1` if omitted.
+Use `delay_minutes` to control when the payment receipt is sent. Defaults to `1` if omitted.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `delay_minutes` | number | `1` | Minutes to wait before sending the receipt email |
+| `delay_minutes` | number | `1` | Minutes to wait before sending the payment receipt email |
 
 **Response:**
 
@@ -104,11 +104,21 @@ Resend uses [Svix](https://svix.com) to sign webhook payloads. Every request to 
 
 ### Events
 
+Subscribe to these in the Resend dashboard when adding your webhook endpoint:
+
 | Event | Description |
 |-------|-------------|
-| `email.delivered` | Email successfully delivered to recipient |
-| `email.bounced` | Email bounced (invalid address or server rejection) |
-| `email.complained` | Recipient marked email as spam |
+| `email.bounced` | Permanently rejected by recipient server |
+| `email.clicked` | Recipient clicked a link in the email |
+| `email.complained` | Recipient marked as spam |
+| `email.delivered` | Successfully delivered to recipient's mail server |
+| `email.delivery_delayed` | Temporary delivery issue (inbox full, server transient) |
+| `email.failed` | Send failed (invalid recipient, API issues, etc.) |
+| `email.opened` | Recipient opened the email |
+| `email.received` | Resend successfully received the email |
+| `email.scheduled` | Email scheduled to be sent |
+| `email.sent` | API accepted the request |
+| `email.suppressed` | Email suppressed by Resend |
 
 ### Getting the Signing Secret
 
@@ -118,18 +128,17 @@ Resend uses [Svix](https://svix.com) to sign webhook payloads. Every request to 
 4. Copy the **Signing Secret** shown after creation
 5. Add it to your `.env`:
    ```
-   WEBHOOK_SIGNING_SECRET=whsec_...
+   WEBHOOK_SECRET=whsec_...
    ```
 
-### Testing Locally with ngrok
+**401 Invalid signature?** The signing secret is unique per webhook endpoint. If you changed your ngrok URL, you created a new endpoint—use the secret from that endpoint. No spaces/newlines when copying.
 
+Use the port you've set in `.env`
 ```bash
-ngrok http 3000
-# Use the HTTPS URL as your webhook endpoint in the Resend dashboard
-# e.g., https://abc123.ngrok.io/webhooks/resend
+ngrok http {port}
 ```
 
----
+Use the port your app runs on (see `PORT` in `.env`). Add the HTTPS URL + `/webhooks/resend` as your webhook endpoint in the Resend dashboard.
 
 ## Project Structure
 
