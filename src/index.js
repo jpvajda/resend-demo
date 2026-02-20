@@ -1,30 +1,46 @@
 require('dotenv').config();
 
 const express = require('express');
-const { Webhook } = require('svix');
 const { generateInvoiceId, generateInvoicePDF } = require('./invoice');
-const { sendInvoiceEmail, scheduleReceiptEmail } = require('./email');
+const { sendInvoiceEmail, scheduleReceiptEmail, getResend } = require('./email');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Webhook route must be registered BEFORE express.json() so the body stays raw (unparsed).
-// Svix signature verification requires the original raw bytes.
+// Webhook route: raw body required for signature verification.
+// express.raw() is scoped to this route only—express.json() is registered below for all other routes.
 app.post('/webhooks/resend', express.raw({ type: 'application/json' }), async (req, res) => {
-  const secret = process.env.WEBHOOK_SIGNING_SECRET;
-  if (!secret) {
-    console.error('[Webhook] WEBHOOK_SIGNING_SECRET is not set');
+  const secret = (process.env.WEBHOOK_SECRET || '').trim();
+  if (!secret || secret === 'whsec_your_signing_secret_here') {
+    console.error('[Webhook] WEBHOOK_SECRET is missing.');
     return res.status(401).json({ error: 'Webhook secret not configured' });
   }
 
-  if (!req.body || req.body.length === 0) {
-    return res.status(400).json({ error: 'Missing request body' });
+  const payloadString = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : req.body;
+
+  const headers = {
+    'svix-id': req.headers['svix-id'],
+    'svix-timestamp': req.headers['svix-timestamp'],
+    'svix-signature': req.headers['svix-signature'],
+  };
+
+  if (!headers['svix-id'] || !headers['svix-timestamp'] || !headers['svix-signature']) {
+    console.error('[Webhook] Missing Svix headers');
+    return res.status(401).json({ error: 'Missing webhook headers' });
   }
 
   let payload;
   try {
-    const wh = new Webhook(secret);
-    payload = wh.verify(req.body, req.headers);
+    const resend = getResend();
+    payload = resend.webhooks.verify({
+      payload: payloadString,
+      headers: {
+        id: headers['svix-id'],
+        timestamp: headers['svix-timestamp'],
+        signature: headers['svix-signature'],
+      },
+      webhookSecret: secret,
+    });
   } catch (err) {
     console.error('[Webhook] Signature verification failed:', err.message);
     return res.status(401).json({ error: 'Invalid signature' });
@@ -32,15 +48,40 @@ app.post('/webhooks/resend', express.raw({ type: 'application/json' }), async (r
 
   const eventType = payload.type;
 
+  // events to capture via the webhook
   switch (eventType) {
+    case 'email.sent':
+      console.log(`[Webhook] Email sent: ${payload.data?.email_id}`);
+      break;
     case 'email.delivered':
       console.log(`[Webhook] Email delivered: ${payload.data?.email_id}`);
+      break;
+    case 'email.delivery_delayed':
+      console.warn(`[Webhook] Email delivery delayed: ${payload.data?.email_id}`);
+      break;
+    case 'email.failed':
+      console.error(`[Webhook] Email failed: ${payload.data?.email_id}`, payload.data?.last_error);
       break;
     case 'email.bounced':
       console.error(`[Webhook] Email bounced: ${payload.data?.email_id}`);
       break;
     case 'email.complained':
       console.warn(`[Webhook] Email complained: ${payload.data?.email_id}`);
+      break;
+    case 'email.clicked':
+      console.log(`[Webhook] Email clicked: ${payload.data?.email_id}`);
+      break;
+    case 'email.scheduled':
+      console.log(`[Webhook] Email scheduled: ${payload.data?.email_id}`);
+      break;
+    case 'email.suppressed':
+      console.warn(`[Webhook] Email suppressed: ${payload.data?.email_id}`);
+      break;
+    case 'email.opened':
+      console.log(`[Webhook] Email opened: ${payload.data?.email_id}`);
+      break;
+    case 'email.received':
+      console.log(`[Webhook] Email received: ${payload.data?.email_id}`);
       break;
     default:
       console.log(`[Webhook] Unhandled event: ${eventType}`);
