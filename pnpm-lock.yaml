@@ -17,6 +17,9 @@ importers:
       pdfkit:
         specifier: ^0.17.2
         version: 0.17.2
+      raw-body:
+        specifier: ^3.0.2
+        version: 3.0.2
       resend:
         specifier: ^6.9.2
         version: 6.9.2

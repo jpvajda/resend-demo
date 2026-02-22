@@ -23,13 +23,15 @@ A Node.js invoice email service that generates PDF invoices and sends them via [
 
 ## Setup
 
+**Package manager:** pnpm is recommended; npm can also be used.
+
 ```bash
 git clone <repo>
 cd resend-demo
-npm install
+pnpm install   # or: npm install
 cp .env.example .env
 # Edit .env with your values
-npm start
+pnpm start     # or: npm start
 ```
 
 ## Health Check
